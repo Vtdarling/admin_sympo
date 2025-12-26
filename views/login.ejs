@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login | Symposium</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body class="login-body">
+
+    <div class="login-card shadow-lg animate-up">
+        <div class="text-center mb-4">
+            <div class="admin-icon mb-3">
+                <i class="fas fa-user-lock fa-3x text-white"></i>
+            </div>
+            <h3 class="fw-bold text-dark">Admin Access</h3>
+            <p class="text-muted small">Restricted Area. Authorized Personnel Only.</p>
+        </div>
+
+        <% if (error) { %>
+            <div class="alert alert-danger text-center p-2 mb-3 small fw-bold">
+                <i class="fas fa-exclamation-circle me-1"></i> <%= error %>
+            </div>
+        <% } %>
+
+        <form action="/login" method="POST">
+            <div class="form-floating mb-3">
+                <input type="text" name="username" class="form-control" id="floatingUser" placeholder="Username" required>
+                <label for="floatingUser"><i class="fas fa-user me-2"></i>Username</label>
+            </div>
+            <div class="form-floating mb-4">
+                <input type="password" name="password" class="form-control" id="floatingPass" placeholder="Password" required>
+                <label for="floatingPass"><i class="fas fa-key me-2"></i>Password</label>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 fw-bold py-3 rounded-pill shadow-sm transition-btn">
+                SECURE LOGIN <i class="fas fa-arrow-right ms-2"></i>
+            </button>
+        </form>
+    </div>
+
+</body>
+</html>
