@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const path = require('path');
 const ExcelJS = require('exceljs');
-const PDFDocument = require('pdfkit'); // Import PDF Library
+const PDFDocument = require('pdfkit'); 
 
 const app = express();
 
@@ -21,20 +21,23 @@ mongoose.connect(dbURI)
     .catch(err => console.log("❌ DB Error:", err));
 
 // --- SCHEMA ---
-const studentSchema = new mongoose.Schema({
+const userSchema = new mongoose.Schema({
+    event_id: String, 
     name: String,
-    college: String,
     email: String,
     phone: String,
-    events: [String],
-    timestamp: { type: Date, default: Date.now }
+    college: String,
+    technical_event: String,
+    non_technical_event: String,
+    transaction_id: String,
+    registeredAt: { type: Date, default: Date.now }
 });
 
-const Student = mongoose.model('Student', studentSchema);
+const User = mongoose.model('User', userSchema);
 
 // --- ROUTES ---
 
-// Login
+// Login Page
 app.get('/', (req, res) => res.render('login', { error: null }));
 
 // Login Logic
@@ -47,12 +50,15 @@ app.post('/login', (req, res) => {
     }
 });
 
-// Dashboard
+// Dashboard - Fetch Users
 app.get('/dashboard', async (req, res) => {
     try {
-        const students = await Student.find().sort({ timestamp: -1 });
-        res.render('dashboard', { students: students });
+        const students = await User.find().sort({ registeredAt: -1 });
+        
+        // ✅ FIXED LINE: We send 'users' because dashboard.ejs uses 'users'
+        res.render('dashboard', { users: students }); 
     } catch (err) {
+        console.error(err);
         res.send("Error fetching data.");
     }
 });
@@ -60,105 +66,109 @@ app.get('/dashboard', async (req, res) => {
 // --- EXCEL EXPORT ---
 app.get('/export-excel', async (req, res) => {
     try {
-        const students = await Student.find().sort({ timestamp: -1 });
+        const students = await User.find().sort({ registeredAt: -1 });
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Registrations');
 
         worksheet.columns = [
-            { header: 'S.No', key: 's_no', width: 8 },
+            { header: 'Event ID', key: 'event_id', width: 15 },
             { header: 'Full Name', key: 'name', width: 25 },
-            { header: 'College Name', key: 'college', width: 30 },
+            { header: 'College', key: 'college', width: 30 },
             { header: 'Phone', key: 'phone', width: 15 },
             { header: 'Email', key: 'email', width: 30 },
-            { header: 'Events', key: 'events', width: 40 }
+            { header: 'Tech Event', key: 'tech', width: 20 },
+            { header: 'Non-Tech Event', key: 'non_tech', width: 20 },
+            { header: 'Trans ID', key: 'trans_id', width: 20 }
         ];
 
-        students.forEach((student, index) => {
+        students.forEach((student) => {
             worksheet.addRow({
-                s_no: index + 1,
+                event_id: student.event_id || '-',
                 name: student.name,
                 college: student.college,
                 phone: student.phone,
                 email: student.email,
-                events: student.events.join(', ')
+                tech: student.technical_event || 'None',
+                non_tech: student.non_technical_event || 'None',
+                trans_id: student.transaction_id || '-'
             });
         });
 
         worksheet.getRow(1).font = { bold: true };
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename=Symposium_Data.xlsx');
+        
         await workbook.xlsx.write(res);
         res.end();
     } catch (err) {
         console.log(err);
-        res.send("Error generating Excel.");
+        res.status(500).send("Error generating Excel.");
     }
 });
 
-// --- PDF EXPORT (New Feature) ---
+// --- PDF EXPORT ---
 app.get('/export-pdf', async (req, res) => {
     try {
-        const students = await Student.find().sort({ timestamp: -1 });
-        const doc = new PDFDocument({ margin: 30, size: 'A4' });
+        const students = await User.find().sort({ registeredAt: -1 });
+        const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
 
-        // Set Headers to download file
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename=Symposium_List.pdf');
 
-        doc.pipe(res); // Send PDF to browser
+        doc.pipe(res);
 
-        // Title
         doc.fontSize(18).text('Symposium 2025 - Registration List', { align: 'center' });
         doc.moveDown();
         doc.fontSize(10).text(`Generated on: ${new Date().toLocaleString()}`, { align: 'center' });
         doc.moveDown();
 
-        // Table Header
         const tableTop = 130;
-        const col1 = 30;  // S.No
-        const col2 = 70;  // Name
+        const col1 = 30;  // ID
+        const col2 = 90;  // Name
         const col3 = 200; // College
-        const col4 = 350; // Events
-        const col5 = 500; // Phone
+        const col4 = 350; // Tech Event
+        const col5 = 500; // Non-Tech
+        const col6 = 650; // Phone
 
         doc.fontSize(10).font('Helvetica-Bold');
-        doc.text('S.No', col1, tableTop);
+        doc.text('ID', col1, tableTop);
         doc.text('Name', col2, tableTop);
         doc.text('College', col3, tableTop);
-        doc.text('Events', col4, tableTop);
-        doc.text('Phone', col5, tableTop);
+        doc.text('Tech Event', col4, tableTop);
+        doc.text('Non-Tech', col5, tableTop);
+        doc.text('Phone', col6, tableTop);
 
-        doc.moveTo(30, tableTop + 15).lineTo(570, tableTop + 15).stroke(); // Line
+        doc.moveTo(30, tableTop + 15).lineTo(780, tableTop + 15).stroke(); 
 
-        // Table Rows
         let y = tableTop + 25;
         doc.font('Helvetica').fontSize(9);
 
         students.forEach((student, i) => {
-            // New page if we reach the bottom
-            if (y > 750) {
-                doc.addPage();
+            if (y > 550) { 
+                doc.addPage({ layout: 'landscape' });
                 y = 50;
             }
+            const tech = student.technical_event || '-';
+            const nonTech = student.non_technical_event || '-';
 
-            doc.text(i + 1, col1, y);
-            doc.text(student.name, col2, y, { width: 120 });
+            doc.text(student.event_id || (i+1), col1, y, { width: 50 });
+            doc.text(student.name, col2, y, { width: 100 });
             doc.text(student.college, col3, y, { width: 140 });
-            doc.text(student.events.join(', '), col4, y, { width: 140 });
-            doc.text(student.phone, col5, y);
+            doc.text(tech, col4, y, { width: 140 });
+            doc.text(nonTech, col5, y, { width: 140 });
+            doc.text(student.phone, col6, y);
 
-            y += 30; // Row height spacing
+            y += 20; 
         });
 
-        doc.end(); // Finish PDF
+        doc.end();
 
     } catch (err) {
         console.log(err);
-        res.send("Error generating PDF");
+        res.status(500).send("Error generating PDF");
     }
 });
 
-// --- START SERVER ---
 const PORT = 4000;
 app.listen(PORT, () => {
     console.log(`🛡️ Admin Panel running at: http://localhost:${PORT}`);
