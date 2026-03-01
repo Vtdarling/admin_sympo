@@ -38,30 +38,6 @@ const User = mongoose.model('User', userSchema);
 
 const normalizeValue = (value) => (value ? String(value).trim().toLowerCase() : '');
 
-const sortStudentsByEventId = (students) => {
-    return [...students].sort((a, b) => {
-        const aId = a.event_id ? String(a.event_id).trim() : '';
-        const bId = b.event_id ? String(b.event_id).trim() : '';
-
-        const aNumMatch = aId.match(/\d+/);
-        const bNumMatch = bId.match(/\d+/);
-        const aNum = aNumMatch ? Number(aNumMatch[0]) : Number.NaN;
-        const bNum = bNumMatch ? Number(bNumMatch[0]) : Number.NaN;
-
-        const aHasNum = Number.isFinite(aNum);
-        const bHasNum = Number.isFinite(bNum);
-
-        if (aHasNum && bHasNum && aNum !== bNum) {
-            return aNum - bNum;
-        }
-
-        if (aHasNum && !bHasNum) return -1;
-        if (!aHasNum && bHasNum) return 1;
-
-        return aId.localeCompare(bId, undefined, { numeric: true, sensitivity: 'base' });
-    });
-};
-
 const isCompletedRegistration = (student) => {
     const transactionId = normalizeValue(student.transaction_id);
     const invalidTransactionValues = new Set(['', '-', 'pending', 'n/a', 'na', 'none', 'null', 'undefined']);
@@ -80,9 +56,8 @@ const isCompletedRegistration = (student) => {
 // Dashboard (Home Route - No Login Required)
 app.get('/', async (req, res) => {
     try {
-        const students = await User.find();
-        const sortedStudents = sortStudentsByEventId(students);
-        const completedStudents = sortedStudents.filter(isCompletedRegistration);
+        const students = await User.find().sort({ registeredAt: -1 });
+        const completedStudents = students.filter(isCompletedRegistration);
         
         // Calculate Stats for the Dashboard
         const stats = {
@@ -102,9 +77,8 @@ app.get('/', async (req, res) => {
 // --- EXCEL EXPORT ---
 app.get('/export-excel', async (req, res) => {
     try {
-        const students = await User.find();
-        const sortedStudents = sortStudentsByEventId(students);
-        const completedStudents = sortedStudents.filter(isCompletedRegistration);
+        const students = await User.find().sort({ registeredAt: -1 });
+        const completedStudents = students.filter(isCompletedRegistration);
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Registrations');
 
@@ -147,9 +121,8 @@ app.get('/export-excel', async (req, res) => {
 // --- PDF EXPORT ---
 app.get('/export-pdf', async (req, res) => {
     try {
-        const students = await User.find();
-        const sortedStudents = sortStudentsByEventId(students);
-        const completedStudents = sortedStudents.filter(isCompletedRegistration);
+        const students = await User.find().sort({ registeredAt: -1 });
+        const completedStudents = students.filter(isCompletedRegistration);
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
 
         res.setHeader('Content-Type', 'application/pdf');

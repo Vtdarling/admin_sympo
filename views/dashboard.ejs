@@ -110,6 +110,21 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
 
+        .mobile-download-only {
+            display: none;
+        }
+
+        @media (max-width: 767.98px) {
+            .desktop-table-header,
+            .desktop-table-wrap {
+                display: none !important;
+            }
+
+            .mobile-download-only {
+                display: block;
+            }
+        }
+
         /* Print Specific Styles */
         @media print {
             .navbar-admin, .btn, .stat-card, .no-print { display: none !important; }
@@ -206,7 +221,7 @@
         <div class="table-container animate__animated animate__fadeInUp animate__delay-1s">
             
             <!-- Table Header with Actions -->
-            <div class="d-flex flex-wrap justify-content-between align-items-center p-4 border-bottom bg-white">
+            <div class="desktop-table-header d-flex flex-wrap justify-content-between align-items-center p-4 border-bottom bg-white">
                 <div>
                     <h5 class="mb-1 fw-bold text-dark">Participant List</h5>
                     <p class="text-muted small mb-0">Manage and view all student registrations</p>
@@ -226,8 +241,22 @@
                     </button>
                 </div>
             </div>
+
+            <div class="mobile-download-only p-4 bg-white">
+                <div class="d-grid gap-2">
+                    <button onclick="window.location.reload()" class="btn btn-outline-info rounded-pill fw-bold px-3 d-flex align-items-center justify-content-center">
+                        <i class="fas fa-sync-alt me-2"></i> Refresh Data
+                    </button>
+                    <a href="/export-excel" class="btn btn-action btn-success text-white border-0 text-decoration-none">
+                        <i class="fas fa-file-excel me-2"></i>Export Excel
+                    </a>
+                    <a href="/export-pdf" class="btn btn-action btn-danger text-white border-0 text-decoration-none">
+                        <i class="fas fa-file-pdf me-2"></i>Download PDF
+                    </a>
+                </div>
+            </div>
             
-            <div class="table-responsive">
+            <div class="desktop-table-wrap table-responsive">
                 <table class="table table-hover mb-0" id="participantsTable">
                     <thead>
                         <tr>
