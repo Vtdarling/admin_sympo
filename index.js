@@ -14,6 +14,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // --- DATABASE CONNECTION ---
+// Note: Ensure your IP is whitelisted in MongoDB Atlas for this connection string to work.
 const dbURI = "mongodb+srv://720723110803_db_user:darling%40123@cluster0.ddwhmyt.mongodb.net/symposiumDB?retryWrites=true&w=majority&appName=Cluster0";
 
 mongoose.connect(dbURI)
@@ -30,43 +31,80 @@ const userSchema = new mongoose.Schema({
     technical_event: String,
     non_technical_event: String,
     transaction_id: String,
-    registeredAt: { type: Date, default: Date.now }
+   registeredAt: { type: Date, default: Date.now }
 });
 
 const User = mongoose.model('User', userSchema);
 
+const normalizeValue = (value) => (value ? String(value).trim().toLowerCase() : '');
+
+const sortStudentsByEventId = (students) => {
+    return [...students].sort((a, b) => {
+        const aId = a.event_id ? String(a.event_id).trim() : '';
+        const bId = b.event_id ? String(b.event_id).trim() : '';
+
+        const aNumMatch = aId.match(/\d+/);
+        const bNumMatch = bId.match(/\d+/);
+        const aNum = aNumMatch ? Number(aNumMatch[0]) : Number.NaN;
+        const bNum = bNumMatch ? Number(bNumMatch[0]) : Number.NaN;
+
+        const aHasNum = Number.isFinite(aNum);
+        const bHasNum = Number.isFinite(bNum);
+
+        if (aHasNum && bHasNum && aNum !== bNum) {
+            return aNum - bNum;
+        }
+
+        if (aHasNum && !bHasNum) return -1;
+        if (!aHasNum && bHasNum) return 1;
+
+        return aId.localeCompare(bId, undefined, { numeric: true, sensitivity: 'base' });
+    });
+};
+
+const isCompletedRegistration = (student) => {
+    const transactionId = normalizeValue(student.transaction_id);
+    const invalidTransactionValues = new Set(['', '-', 'pending', 'n/a', 'na', 'none', 'null', 'undefined']);
+
+    const technicalEvent = normalizeValue(student.technical_event);
+    const nonTechnicalEvent = normalizeValue(student.non_technical_event);
+    const hasSelectedEvent =
+        (technicalEvent !== '' && technicalEvent !== 'none') ||
+        (nonTechnicalEvent !== '' && nonTechnicalEvent !== 'none');
+
+    return !invalidTransactionValues.has(transactionId) && hasSelectedEvent;
+};
+
 // --- ROUTES ---
 
-// Login Page
-app.get('/', (req, res) => res.render('login', { error: null }));
-
-// Login Logic
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
-    if (username === "admin" && password === "sympo2025") {
-        res.redirect('/dashboard');
-    } else {
-        res.render('login', { error: "Invalid Credentials" });
-    }
-});
-
-// Dashboard - Fetch Users
-app.get('/dashboard', async (req, res) => {
+// Dashboard (Home Route - No Login Required)
+app.get('/', async (req, res) => {
     try {
-        const students = await User.find().sort({ registeredAt: -1 });
+        const students = await User.find();
+        const sortedStudents = sortStudentsByEventId(students);
+        const completedStudents = sortedStudents.filter(isCompletedRegistration);
         
-        // ✅ FIXED LINE: We send 'users' because dashboard.ejs uses 'users'
-        res.render('dashboard', { users: students }); 
+        // Calculate Stats for the Dashboard
+        const stats = {
+            total: completedStudents.length,
+            technical: completedStudents.filter(s => s.technical_event && s.technical_event !== 'None').length,
+            nonTechnical: completedStudents.filter(s => s.non_technical_event && s.non_technical_event !== 'None').length,
+            colleges: new Set(completedStudents.map(s => s.college)).size // Count unique colleges
+        };
+
+        res.render('dashboard', { users: completedStudents, stats: stats }); 
     } catch (err) {
         console.error(err);
-        res.send("Error fetching data.");
+        res.status(500).send("Error fetching data from database.");
     }
 });
 
 // --- EXCEL EXPORT ---
 app.get('/export-excel', async (req, res) => {
     try {
-        const students = await User.find().sort({ registeredAt: -1 });
+        const students = await User.find();
+        const sortedStudents = sortStudentsByEventId(students);
+        const completedStudents = sortedStudents.filter(isCompletedRegistration);
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Registrations');
 
@@ -81,7 +119,7 @@ app.get('/export-excel', async (req, res) => {
             { header: 'Trans ID', key: 'trans_id', width: 20 }
         ];
 
-        students.forEach((student) => {
+        completedStudents.forEach((student) => {
             worksheet.addRow({
                 event_id: student.event_id || '-',
                 name: student.name,
@@ -109,7 +147,9 @@ app.get('/export-excel', async (req, res) => {
 // --- PDF EXPORT ---
 app.get('/export-pdf', async (req, res) => {
     try {
-        const students = await User.find().sort({ registeredAt: -1 });
+        const students = await User.find();
+        const sortedStudents = sortStudentsByEventId(students);
+        const completedStudents = sortedStudents.filter(isCompletedRegistration);
         const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
 
         res.setHeader('Content-Type', 'application/pdf');
@@ -143,7 +183,7 @@ app.get('/export-pdf', async (req, res) => {
         let y = tableTop + 25;
         doc.font('Helvetica').fontSize(9);
 
-        students.forEach((student, i) => {
+        completedStudents.forEach((student, i) => {
             if (y > 550) { 
                 doc.addPage({ layout: 'landscape' });
                 y = 50;
